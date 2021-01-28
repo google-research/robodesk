@@ -35,7 +35,7 @@ class RoboDesk(gym.Env):
     self.physics_copy = self.physics.copy(share_model=True)
     self.physics_copy.data.qpos[:] = self.physics.data.qpos[:]
 
-    # Robot constants (may not be needed)
+    # Robot constants
     self.num_joints = 9
     self.joint_bounds = self.physics.model.actuator_ctrlrange.copy()
 
@@ -71,7 +71,7 @@ class RoboDesk(gym.Env):
         'spin': self._spin_flat_block_reward,
         'upright_block_off_table': (lambda reward_type: self._push_off_table(
             'upright_block', reward_type)),
-        'flat_block_in_bin': (lambda reward_type: self._push_in_bin(
+        'flat_block_in_bin': (lambda reward_type: self._put_in_bin(
             'flat_block', reward_type)),
         'ball_in_drawer': (lambda reward_type: self._put_in_drawer(
             'ball', reward_type)),
@@ -93,9 +93,9 @@ class RoboDesk(gym.Env):
             'flat_block', reward_type)),
         'ball_off_table': (lambda reward_type: self._push_off_table(
             'ball', reward_type)),
-        'upright_block_in_bin': (lambda reward_type: self._push_in_bin(
+        'upright_block_in_bin': (lambda reward_type: self._put_in_bin(
             'upright_block', reward_type)),
-        'ball_in_bin': (lambda reward_type: self._push_in_bin(
+        'ball_in_bin': (lambda reward_type: self._put_in_bin(
             'ball', reward_type)),
         'upright_block_in_drawer': (lambda reward_type: self._put_in_drawer(
             'upright_block', reward_type)),
@@ -104,7 +104,7 @@ class RoboDesk(gym.Env):
         'upright_block_in_shelf': (lambda reward_type: self._put_in_shelf(
             'upright_block', reward_type)),
         'ball_in_shelf': (lambda reward_type: self._put_in_shelf(
-            'ball',reward_type)),
+            'ball', reward_type)),
     }
 
     self.core_tasks = list(self.reward_functions)[0:12]
@@ -130,16 +130,8 @@ class RoboDesk(gym.Env):
     return gym.spaces.Dict(spaces)
 
   def render(self, mode='rgb_array', resize=True):
-    # params = {'distance': 1.8, 'azimuth': 90, 'elevation': -60,
-    #           'crop_box': (95, 100, 420, 355), 'size': 480}
-    # params = {'distance': 1.8, 'azimuth': 90, 'elevation': -60,
-    #           'crop_box': (47.5, 50.0, 210.0, 177.5), 'size': 240}
-    # params = {'distance': 1.8, 'azimuth': 90, 'elevation': -60,
-    #           'crop_box': (23.75, 25.0, 105.0, 88.75), 'size': 120}
     params = {'distance': 1.8, 'azimuth': 90, 'elevation': -60,
               'crop_box': (16.75, 25.0, 105.0, 88.75), 'size': 120}
-    # params = {'distance': 1.8, 'azimuth': 90, 'elevation': -60,
-    #           'crop_box': (11.875, 12.5, 52.5, 44.375), 'size': 60}
     camera = mujoco.Camera(
         physics=self.physics, height=params['size'],
         width=params['size'], camera_id=-1)
@@ -181,13 +173,13 @@ class RoboDesk(gym.Env):
 
       joint = self._ik(position)
       delta_wrist = self._action_to_delta_joint(full_action[3],
-                                                 self.joint_bounds[6])
+                                                self.joint_bounds[6])
       joint[6] = ((self.wrist_scale * delta_wrist) +
                   self.physics.named.data.qpos[6])
       joint[6] = np.clip(joint[6], self.joint_bounds[6][0],
                          self.joint_bounds[6][1])
       joint[7] = self._action_to_delta_joint(full_action[4],
-                                              self.joint_bounds[7])
+                                             self.joint_bounds[7])
       joint[8] = joint[7]
     else:
       delta_joint = [
@@ -254,7 +246,8 @@ class RoboDesk(gym.Env):
     self.physics.named.data.qpos['ball'][0] += 0.48 * np.random.random()
     self.physics.named.data.qpos['ball'][1] += 0.08 * np.random.random()
     self.physics.named.data.qpos['upright_block'][0] += 0.3 * np.random.random()
-    self.physics.named.data.qpos['upright_block'][1] += 0.05 * np.random.random()
+    self.physics.named.data.qpos['upright_block'][1] += (
+        0.05 * np.random.random())
 
     # Set robot position.
     self.physics.data.qpos[:self.num_joints] = self._get_init_robot_pos()
@@ -335,7 +328,7 @@ class RoboDesk(gym.Env):
   def _spin_flat_block_reward(self, reward_type='dense_reward'):
     z_angular_velocity = self.physics.named.data.qvel['flat_block'][5]
     current_quat = self.physics.named.data.xquat['flat_block']
-    target_rmat = transformations.rotation_z_axis(math.pi) # TODO take initial configuration into account
+    target_rmat = transformations.rotation_z_axis(math.pi)
     target_quat = transformations.mat_to_quat(target_rmat)
     quat_distance = transformations.quat_dist(current_quat, target_quat)
 

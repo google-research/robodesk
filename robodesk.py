@@ -1,3 +1,19 @@
+"""
+Copyright 2021 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
 """Desk environment with Franka Panda arm."""
 
 from __future__ import absolute_import
@@ -23,14 +39,7 @@ class RoboDesk(gym.Env):
                episode_length=500, image_size=64):
     assert reward in ('dense', 'sparse', 'success'), reward
 
-    try:
-      from google3.pyglib import resources  # pylint: disable=g-import-not-at-top
-      dir_path = '/google3/experimental/users/hkannan/world_models/'
-      desk_path = 'franka_desk/assets/desk.xml'
-      model_path = resources.GetARootDirWithAllResources() + os.path.join(
-          dir_path, desk_path)
-    except ImportError:
-      model_path = 'assets/desk.xml'
+    model_path = 'assets/desk.xml'
     self.physics = mujoco.Physics.from_xml_path(model_path)
     self.physics_copy = self.physics.copy(share_model=True)
     self.physics_copy.data.qpos[:] = self.physics.data.qpos[:]

@@ -1,32 +1,15 @@
+## Disclaimer: Not an official Google product.
+
 ## About
 
-RoboDesk is a multi-task benchmark for fine-grained robotic manipulation tasks
-in simulation. The benchmark features 12 core tasks that have been carefully
-chosen to represent a wide variety of robotic skills. The benchmark is built on
-top of a desk environment which features multiple interactive objects (buttons,
-drawers, blocks of various sizes) and a Franka Panda robotic arm.
+RoboDesk is a benchmark designed for multi-task reinforcement learning on pixels. The benchmark features 9 core tasks that have been carefully chosen to represent a wide variety of robotic skills. The benchmark is built on top of a desk environment which features multiple interactive objects (buttons, drawers, blocks of various sizes) and a Franka Panda robotic arm. 
 
-Our environment is built to allow transfer and sharing of data across tasks,
-enabling multi-task learning. In addition to our 12-task benchmark, we include
-reward functions for 45 total tasks. However, we encourage users to only report
-numbers on our pre-defined 12-task benchmark in order to keep results
-standardized. We deliberately chose only 12 tasks in order to minimize compute
-resources required and make our benchmark accessible to as many researchers as
-possible. These 12 manipulation tasks test a wide variety of skills (listed
-below), and our benchmark features visual complexity and diversity of object
-shapes, sizes, and textures.
+Our environment is built to allow transfer and sharing of data across tasks, enabling multi-task learning. We chose 9 tasks in order to minimize compute resources required and make our benchmark accessible to as many researchers as possible. Our benchmark features visual complexity and diversity of object shapes, sizes, and textures. We randomize the starting position of the objects on our desk, the drawer, and the moving slide to avoid memorization by the agent.
 
-We have also carefully developed each component of our environment (step(),
-reset(), action space, etc.) by testing each component for possible physics
-issues and ensuring that they do not arise. Furthermore, the tasks have been
-carefully tested and calibrated with RL agents to ensure that they are of
-appropriate difficulty. Similar to dm_control, we include both dense and sparse
-reward functions with human-interpretable fixed ranges (between 0 and 1).
+We also carefully developed each component of our environment (step(), reset(), action space, etc.) by keeping in mind common physics errors that arise. We extensively tested the physics of the environment to ensure its robustness and to avoid errors that can happen with complicated multi-object environments (e.g. objects passing through each other, simulation instability). Furthermore, the tasks have been tested and calibrated with RL agents to ensure that they are of appropriate difficulty. Similar to dm_control, we include both dense and sparse reward functions with human-interpretable fixed ranges (between 0 and 1). 
 
-Finally, we designed our Python environment to have as little code as possible
-and to be a self-contained, simple implementation that does not rely on large
-frameworks. We hope that this simplicity will help with in-depth understanding
-and debugging and will also serve as a blueprint for new environments.
+Finally, we designed our Python environment to be a self-contained, simple implementation that can serve as a blueprint for new Mujoco environments. Our environment does not rely on large frameworks and has as little code as possible. In addition to serving as a blueprint, we hope that the environment's simplicity will help with in-depth understanding and debugging.
+
 
 ## Installation
 

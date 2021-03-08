@@ -268,7 +268,7 @@ class RoboDesk(gym.Env):
                              0.33 * self._did_not_move(blocks[1]) +
                              0.34 * self._did_not_move(blocks[2]))
       task_reward = (0.75 * door_pos) + (0.25 * dist_reward)
-      return (0.75 * task_reward) + (0.25 * did_not_move_reward)
+      return (0.9 * task_reward) + (0.1 * did_not_move_reward)
     elif reward_type == 'success':
       return 1 * (self.physics.named.data.qpos['slide_joint'] > 0.55)
 

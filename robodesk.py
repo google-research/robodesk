@@ -1,31 +1,13 @@
-"""
-Copyright 2021 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
 """Desk environment with Franka Panda arm."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import math
 import os
 
 from dm_control import mujoco
 from dm_control.utils import inverse_kinematics
-from dm_control.utils import transformations
 import gym
 import numpy as np
 from PIL import Image
@@ -34,8 +16,7 @@ from PIL import Image
 class RoboDesk(gym.Env):
   """Multi-task manipulation environment."""
 
-  def __init__(self, task='open_slide', reward='dense',
-               action_type='end_effector', action_repeat=1,
+  def __init__(self, task='open_slide', reward='dense', action_repeat=1,
                episode_length=500, image_size=64):
     assert reward in ('dense', 'sparse', 'success'), reward
 
@@ -50,8 +31,7 @@ class RoboDesk(gym.Env):
 
     # Environment params
     self.image_size = image_size
-    self.action_type = action_type
-    self.action_dim = dict(end_effector=5, joints=9)[self.action_type]
+    self.action_dim = 5
     self.reward = reward
     self.success = None
 
@@ -77,19 +57,14 @@ class RoboDesk(gym.Env):
         'push_green': (lambda reward_type: self._button_reward(
             'green', reward_type)),
         'stack': self._stack_reward,
-        'spin': self._spin_flat_block_reward,
         'upright_block_off_table': (lambda reward_type: self._push_off_table(
             'upright_block', reward_type)),
         'flat_block_in_bin': (lambda reward_type: self._put_in_bin(
             'flat_block', reward_type)),
-        'ball_in_drawer': (lambda reward_type: self._put_in_drawer(
-            'ball', reward_type)),
         'flat_block_in_shelf': (lambda reward_type: self._put_in_shelf(
             'flat_block', reward_type)),
         'lift_upright_block': (lambda reward_type: self._lift_block(
             'upright_block', reward_type)),
-        'lift_flat_block': (lambda reward_type: self._lift_block(
-            'flat_block', reward_type)),
         'lift_ball': (lambda reward_type: self._lift_block(
             'ball', reward_type)),
 
@@ -106,14 +81,12 @@ class RoboDesk(gym.Env):
             'upright_block', reward_type)),
         'ball_in_bin': (lambda reward_type: self._put_in_bin(
             'ball', reward_type)),
-        'upright_block_in_drawer': (lambda reward_type: self._put_in_drawer(
-            'upright_block', reward_type)),
-        'flat_block_in_drawer': (lambda reward_type: self._put_in_drawer(
-            'flat_block', reward_type)),
         'upright_block_in_shelf': (lambda reward_type: self._put_in_shelf(
             'upright_block', reward_type)),
         'ball_in_shelf': (lambda reward_type: self._put_in_shelf(
             'ball', reward_type)),
+        'lift_flat_block': (lambda reward_type: self._lift_block(
+            'flat_block', reward_type)),
     }
 
     self.core_tasks = list(self.reward_functions)[0:12]
@@ -175,29 +148,21 @@ class RoboDesk(gym.Env):
   def _convert_action(self, full_action):
     """Converts action from [-1, 1] space to desired joint position."""
     full_action = np.array(full_action)
-    if self.action_type == 'end_effector':
-      delta_action = full_action[0:3] * self.end_effector_scale
-      position = (
-          self.physics.named.data.site_xpos['end_effector'] + delta_action)
 
-      joint = self._ik(position)
-      delta_wrist = self._action_to_delta_joint(full_action[3],
-                                                self.joint_bounds[6])
-      joint[6] = ((self.wrist_scale * delta_wrist) +
-                  self.physics.named.data.qpos[6])
-      joint[6] = np.clip(joint[6], self.joint_bounds[6][0],
-                         self.joint_bounds[6][1])
-      joint[7] = self._action_to_delta_joint(full_action[4],
-                                             self.joint_bounds[7])
-      joint[8] = joint[7]
-    else:
-      delta_joint = [
-          self._action_to_delta_joint(full_action[i], self.joint_bounds[i])
-          for i in range(9)
-      ]
-      delta_joint = np.array(delta_joint) * self.joint_scale
-      joint = self.physics.data.qpos[:self.num_joints] + delta_joint
-      joint = np.clip(joint, self.joint_bounds[:, 0], self.joint_bounds[:, 1])
+    delta_action = full_action[0:3] * self.end_effector_scale
+    position = (
+        self.physics.named.data.site_xpos['end_effector'] + delta_action)
+
+    joint = self._ik(position)
+    delta_wrist = self._action_to_delta_joint(full_action[3],
+                                              self.joint_bounds[6])
+    joint[6] = ((self.wrist_scale * delta_wrist) +
+                self.physics.named.data.qpos[6])
+    joint[6] = np.clip(joint[6], self.joint_bounds[6][0],
+                       self.joint_bounds[6][1])
+    joint[7] = self._action_to_delta_joint(full_action[4],
+                                           self.joint_bounds[7])
+    joint[8] = joint[7]
     return joint
 
   def step(self, action):
@@ -254,7 +219,8 @@ class RoboDesk(gym.Env):
     self.physics.named.data.qpos['flat_block'][1] += 0.07 * np.random.random()
     self.physics.named.data.qpos['ball'][0] += 0.48 * np.random.random()
     self.physics.named.data.qpos['ball'][1] += 0.08 * np.random.random()
-    self.physics.named.data.qpos['upright_block'][0] += 0.3 * np.random.random()
+    self.physics.named.data.qpos['upright_block'][0] += (
+        0.3 * np.random.random() + 0.05)
     self.physics.named.data.qpos['upright_block'][1] += (
         0.05 * np.random.random())
 
@@ -285,18 +251,24 @@ class RoboDesk(gym.Env):
     dist = np.linalg.norm(current_pos - self.original_pos[block_name])
     return dist / max_dist
 
-  def _get_dist_reward(self, object_pos, max_dist=4.0):
+  def _get_dist_reward(self, object_pos, max_dist=1.0):
     eepos = self.physics.named.data.site_xpos['end_effector']
     dist = np.linalg.norm(eepos - object_pos)
-    return 1 - (dist / max_dist)
+    reward = 1 - (dist / max_dist)
+    return max(0, min(1, reward))
 
   def _slide_reward(self, reward_type='dense_reward'):
+    blocks = ['flat_block', 'upright_block', 'ball']
     if reward_type == 'dense_reward':
       door_pos = self.physics.named.data.qpos['slide_joint'][0] / 0.6
       target_pos = (self.physics.named.data.site_xpos['slide_handle'] -
                     np.array([0.15, 0, 0]))
       dist_reward = self._get_dist_reward(target_pos)
-      return (0.75 * door_pos) + (0.25 * dist_reward)
+      did_not_move_reward = (0.33 * self._did_not_move(blocks[0]) +
+                             0.33 * self._did_not_move(blocks[1]) +
+                             0.34 * self._did_not_move(blocks[2]))
+      task_reward = (0.75 * door_pos) + (0.25 * dist_reward)
+      return (0.9 * task_reward) + (0.1 * did_not_move_reward)
     elif reward_type == 'success':
       return 1 * (self.physics.named.data.qpos['slide_joint'] > 0.55)
 
@@ -332,25 +304,7 @@ class RoboDesk(gym.Env):
     if reward_type == 'dense_reward':
       return -offset_difference + dist_reward
     elif reward_type == 'success':
-      return offset_difference < 0.01
-
-  def _spin_flat_block_reward(self, reward_type='dense_reward'):
-    z_angular_velocity = self.physics.named.data.qvel['flat_block'][5]
-    current_quat = self.physics.named.data.xquat['flat_block']
-    target_rmat = transformations.rotation_z_axis(math.pi)
-    target_quat = transformations.mat_to_quat(target_rmat)
-    quat_distance = transformations.quat_dist(current_quat, target_quat)
-
-    if reward_type == 'dense_reward':
-      dist_reward = self._get_dist_reward(
-          self.physics.named.data.xpos['flat_block'])
-      total_rotation_reward = 1.0 - quat_distance / (2 * math.pi)
-      do_not_move = 1 - self._total_movement('flat_block', max_dist=0.5)
-      return ((0.25 * dist_reward) + (0.25 * abs(z_angular_velocity)) +
-              (0.25 * total_rotation_reward) + (0.25 * do_not_move))
-    elif reward_type == 'success':
-      print('total_rotation is ', self.total_rotation)
-      return 1 * (quat_distance < 1e-2)
+      return offset_difference < 0.04
 
   def _push_off_table(self, block_name, reward_type='dense_reward'):
     blocks = ['flat_block', 'upright_block', 'ball']
@@ -382,24 +336,6 @@ class RoboDesk(gym.Env):
     elif reward_type == 'success':
       return 1 * success
 
-  def _put_in_drawer(self, block_name, reward_type='dense_reward'):
-    self.drawer_opened = (self.physics.named.data.qpos['drawer_joint'] < -0.15)
-    pos = self.physics.named.data.xpos[block_name]
-    success = (pos[0] > -0.23) and (pos[0] < 0.23) and (pos[1] < 0.54)
-    if reward_type == 'dense_reward':
-      if self.drawer_opened:
-        dist_reward = self._get_dist_reward(
-            self.physics.named.data.xpos[block_name])
-        y_reward = (0.54 - pos[1]) * 4
-        ball_in_drawer = ((0.33 * dist_reward) + (0.33 * y_reward) +
-                          (0.34 * float(success)))
-        reward = 0.5 * ball_in_drawer + 0.5 * self._drawer_reward()
-        return reward
-      else:
-        return 0.5 * self._drawer_reward()
-    elif reward_type == 'success':
-      return 1 * success
-
   def _put_in_shelf(self, block_name, reward_type='dense_reward'):
     x_success = (self.physics.named.data.xpos[block_name][0] > 0.2)
     y_success = (self.physics.named.data.xpos[block_name][1] > 1.0)
@@ -416,8 +352,8 @@ class RoboDesk(gym.Env):
       block_1_stay_put = (1 - self._total_movement(blocks[1]))
       block_in_shelf = ((0.33 * dist_reward) + (0.33 * block_dist_reward) +
                         (0.34 * float(success)))
-      reward = ((0.7 * block_in_shelf) + (0.15 * block_0_stay_put) +
-                (0.15 * block_1_stay_put))
+      reward = ((0.5 * block_in_shelf) + (0.25 * block_0_stay_put) +
+                (0.25 * block_1_stay_put))
       return reward
     elif reward_type == 'success':
       return 1 * success
@@ -427,11 +363,14 @@ class RoboDesk(gym.Env):
       dist_reward = self._get_dist_reward(
           self.physics.named.data.xpos[block_name])
       block_reward = (self.physics.named.data.xpos[block_name][2] -
-                      self.original_pos[block_name][2]) * 5
+                      self.original_pos[block_name][2]) * 10
       block_reward = max(0, min(1, block_reward))
-      return (0.75 * block_reward) + (0.25 * dist_reward)
+      return (0.85 * block_reward) + (0.15 * dist_reward)
     elif reward_type == 'success':
-      return 1 * (self.physics.named.data.xpos[block_name][2] > 0.87)
+      success_criteria = {'upright_block': 0.86, 'ball': 0.81,
+                          'flat_block': 0.78}
+      threshold = success_criteria[block_name]
+      return 1 * (self.physics.named.data.xpos[block_name][2] > threshold)
 
   def _get_task_reward(self, task, reward_type):
     reward = self.reward_functions[task](reward_type)

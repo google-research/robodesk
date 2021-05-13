@@ -17,7 +17,7 @@ print(extra_files)
 
 setuptools.setup(
     name='robodesk',
-    version='0.0.5',
+    version='1.0.0',
     description='Multi-task reinforcement learning benchmark.',
     url='https://github.com/google-research/robodesk',
     author='Harini Kannan',

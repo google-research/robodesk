@@ -118,14 +118,7 @@ Box(-1, 1, (5,), np.float32)
 We thank Ben Eysenbach and Debidatta Dwibedi for their helpful feedback.
 
 
-Our benchmark builds upon previously open-sourced work. We build upon the desk XMLs first introduced in [1], the Franka XMLs open-sourced in [2], and the Franka meshes open-sourced in [3].
-
-
-[1] https://github.com/google-research/google-research/tree/master/playrooms
-
-[2] https://github.com/vikashplus/franka_sim
-
-[3] https://github.com/frankaemika/franka_ros/tree/kinetic-devel/franka_description
+Our benchmark builds upon previously open-sourced work. We build upon the desk XMLs first introduced in [[1]](https://github.com/google-research/google-research/tree/master/playrooms), the Franka XMLs open-sourced in [[2]](https://github.com/vikashplus/franka_sim), and the Franka meshes open-sourced in [[3]](https://github.com/frankaemika/franka_ros/tree/kinetic-devel/franka_description).
 
 ## Questions
 

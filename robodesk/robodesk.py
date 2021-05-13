@@ -20,7 +20,7 @@ class RoboDesk(gym.Env):
                episode_length=500, image_size=64):
     assert reward in ('dense', 'sparse', 'success'), reward
 
-    model_path = 'assets/desk.xml'
+    model_path = os.path.join(os.path.dirname(__file__), 'assets/desk.xml')
     self.physics = mujoco.Physics.from_xml_path(model_path)
     self.physics_copy = self.physics.copy(share_model=True)
     self.physics_copy.data.qpos[:] = self.physics.data.qpos[:]

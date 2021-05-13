@@ -45,11 +45,25 @@ while not done:
 
 [gym]: https://github.com/openai/gym
 
+
 ## Tasks
 
 ![Robodesk Tasks](https://i.imgur.com/OwTT2pk.gif)
 
-The behaviors were learned using the [Dreamer](https://github.com/danijar/dreamer) agent.
+The behaviors above were learned using the [Dreamer](https://github.com/danijar/dreamer) agent. These policies have been learned from scratch and only from pixels, not proprioceptive states.
+
+| Task | Description |
+| :-------- | :---------- |
+| `open_slide` | Push the sliding door all the way to the right, navigating around the other objects.  |
+| `open_drawer` | Pull the dark brown drawer all the way open. |
+| `push_green` | Push the green button to turn the green light on. |
+| `stack_blocks` | Stack the upright blue block on top of the flat green block. |
+| `upright_block_off_table` | Push the blue upright block off the table.  |
+| `flat_block_in_bin` | Push the green flat block into the blue bin.  |
+| `flat_block_in_shelf` | Push the green flat block into the shelf, navigating around the other blocks.  |
+| `lift_upright_block` | Grasp the blue upright block and lift it above the table.  |
+| `lift_ball` | Grasp the magenta ball and lift it above the table. |
+
 
 ## Environment Details
 
@@ -99,6 +113,19 @@ RoboDesk uses end effector control with a simple bounded action space:
 ```
 Box(-1, 1, (5,), np.float32)
 ```
+
+## Acknowledgements
+We thank Ben Eysenbach and Debidatta Dwibedi for their helpful feedback.
+
+
+Our benchmark builds upon previously open-sourced work. We build upon the desk XMLs first introduced in [1], the Franka XMLs open-sourced in [2], and the Franka meshes open-sourced in [3].
+
+
+[1] https://github.com/google-research/google-research/tree/master/playrooms
+
+[2] https://github.com/vikashplus/franka_sim
+
+[3] https://github.com/frankaemika/franka_ros/tree/kinetic-devel/franka_description
 
 ## Questions
 

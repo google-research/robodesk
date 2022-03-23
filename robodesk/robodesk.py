@@ -5,6 +5,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import glob
 
 from dm_control import mujoco
 from dm_control.utils import inverse_kinematics
@@ -12,34 +13,85 @@ import gym
 import numpy as np
 from PIL import Image
 
-
-class NumPyRNGWrapper(object):
-  def __init__(self):
-    self.seed(None)
-
-  def seed(self, seed=None):
-    # seed: Union[int, np.random.SeedSequence, None]
-    if hasattr(np.random, 'Generator'):
-      self.rng = np.random.Generator(np.random.PCG64(seed))
-    else:
-      self.rng = np.random.RandomState(seed=seed)
-
-  def uniform(self, low=0.0, high=1.0, size=None):
-    return self.rng.uniform(low=low, high=high, size=size)
-
-  def random(self):
-    return self.rng.random()
+from .utils import CameraSpec, NumPyRNGWrapper, EnvLightManager, TVManager, ButtonManager
 
 
-class RoboDesk(gym.Env):
-  """Multi-task manipulation environment."""
+class RoboDeskBase(gym.Env):
+  r"""
+  Multi-task manipulation environment.
+
+  Common Arguments::
+
+    task (str):   Task of the environment, defining the reward function.
+                  Default: "open_slide".
+    reward (str): Type of the reward, also affecting the reward function.
+                  Choices: "dense", "sparse", "success". Default: "dense".
+    action_repeat (int): Default: 1.
+    episode_length (int): Default: 500.
+    image_size (int): Default: 64.
+
+  Following arguments are useful for advanced use cases and customization of the
+  environment, including settings for various distractors and noises. If you are
+  looking for a simple-to-use API for noisy environment with distractors, see
+  RoboDeskNoisy or RoboDeskNoisyWithTV.
+
+  Distractors / Noises Arguments::
+
+    [ Environment Lighting ]
+    env_light_noise_strength (float): Controlling level of environment light
+                                      jittering and flickering. This tends to
+                                      lead to dimmer scene, so adjusting
+                                      `headlight_brightness` might be needed.
+                                      Should be within [0, 1]. Default: 0.
+    headlight_brightness (float): Adjusting the headlight level. Useful when the
+                                  rendering is darker than ideal, e.g., due to
+                                  noisy lighting. Default: 0.4.
+
+    [ Button Sensor ]
+    button_sensor_noise_strength (float): Controlling level of noise in button
+                                          sensor reading. Many elements depend
+                                          on the amount the button pressed (e.g.,
+                                          hue of TV). Turning this on makes the
+                                          button reading noisy. Notably this
+                                          affects the brightness of the lights,
+                                          and the TV hue that is controlled by
+                                          button. With this turned on (value > 0)
+                                          their brightness will reflect the
+                                          noisy sensor reading (rather than
+                                          having binary states on vs. off).
+                                          Should be within [0, 1]. Default: 0.
+
+    [ Camera Location ]
+    camera_noise_strength (float): Controlling level of camera shaking.
+                                   Should be within [0, 1]. Default: 0.
+
+    [ TV ]
+    tv_video_file_pattern (str): A glob pattern that selects videos to be played
+                                 on a TV in the environment. If `None`, TV will
+                                 not show any video. Default: None.
+  """
+
+  MODEL_PATH: str
+  CAMERA_SPEC: CameraSpec
 
   def __init__(self, task='open_slide', reward='dense', action_repeat=1,
-               episode_length=500, image_size=64):
+               episode_length=500, image_size=64,
+               headlight_brightness=0.4,
+               button_sensor_noise_strength=0,
+               env_light_noise_strength=0,
+               camera_noise_strength=0,
+               tv_video_file_pattern=None):
     assert reward in ('dense', 'sparse', 'success'), reward
 
-    model_path = os.path.join(os.path.dirname(__file__), 'assets/desk.xml')
-    self.physics = mujoco.Physics.from_xml_path(model_path)
+    # model = os.path.join(os.path.dirname(__file__), 'assets/desks_with_tv.xml')
+    self.physics = mujoco.Physics.from_xml_path(self.MODEL_PATH)
+
+    # Adjust headlight
+    self.physics.model.vis.headlight.ambient[:] = headlight_brightness * 0.25  # default 0.4 -> 0.1
+    self.physics.model.vis.headlight.diffuse[:] = headlight_brightness  # default 0.4 -> 0.4
+    self.physics.model.vis.headlight.specular[:] = headlight_brightness * 0.8 + 0.18  # default 0.4 -> 0.5
+
+    # Create a copy for IK
     self.physics_copy = self.physics.copy(share_model=True)
     self.physics_copy.data.qpos[:] = self.physics.data.qpos[:]
 
@@ -52,6 +104,25 @@ class RoboDesk(gym.Env):
     self.action_dim = 5
     self.reward = reward
     self.success = None
+
+    # RNG
+    # [env, button, camera, env_light, tv_init, tv_run]
+    seed, button_seed, cam_seed, env_light_seed, tv_seed = NumPyRNGWrapper.split_seed(seed=None, n=5)
+    self.np_rng = NumPyRNGWrapper(seed)
+
+    # Managers of specific elements
+    button_manager = ButtonManager(self.physics, button_sensor_noise_strength, button_seed)
+    self.elem_managers = dict(
+      camera=self.CAMERA_SPEC.get_camera_manager(self.physics, camera_noise_strength, cam_seed),
+      button=button_manager,
+      env_light=EnvLightManager(self.physics, swing_scale=env_light_noise_strength,
+        flicker_scale=env_light_noise_strength, seed=env_light_seed),
+      tv=TVManager(self.physics, tv_video_file_pattern, button_manager, tv_seed)
+    )
+
+    # Noises
+    self.button_sensor_noise_strength = button_sensor_noise_strength
+    self.tv_video_file_pattern = tv_video_file_pattern
 
     # Action space
     self.end_effector_scale = 0.01
@@ -106,16 +177,29 @@ class RoboDesk(gym.Env):
             'ball', reward_type)),
         'lift_flat_block': (lambda reward_type: self._lift_block(
             'flat_block', reward_type)),
+        'tv_green_hue': (lambda reward_type: self._tv_hue('green', reward_type))
     }
 
     self.core_tasks = list(self.reward_functions)[0:12]
     self.all_tasks = list(self.reward_functions)
     self.task = task
     # pylint: enable=g-long-lambda
-    self.np_rng = NumPyRNGWrapper()
 
   def seed(self, seed=None):
+    seed, button_seed, cam_seed, env_light_seed, tv_seed = NumPyRNGWrapper.split_seed(seed, 5)
     self.np_rng.seed(seed)
+    self.elem_managers['button'].seed(button_seed)
+    self.elem_managers['camera'].seed(cam_seed)
+    self.elem_managers['env_light'].seed(env_light_seed)
+    self.elem_managers['tv'].seed(tv_seed)
+
+  def get_random_state(self):
+    return (self.np_rng.get_random_state(), {k: m.get_random_state() for k, m in self.elem_managers.items()})
+
+  def set_random_state(self, random_state):
+    self.np_rng.set_random_state(random_state[0])
+    for k, m in self.elem_managers.items():
+        m.set_random_state(random_state[1][k])
 
   @property
   def action_space(self):
@@ -135,25 +219,12 @@ class RoboDesk(gym.Env):
     return gym.spaces.Dict(spaces)
 
   def render(self, mode='rgb_array', resize=True):
-    params = {'distance': 1.8, 'azimuth': 90, 'elevation': -60,
-              'crop_box': (16.75, 25.0, 105.0, 88.75), 'size': 120}
-    camera = mujoco.Camera(
-        physics=self.physics, height=params['size'],
-        width=params['size'], camera_id=-1)
-    camera._render_camera.distance = params['distance']  # pylint: disable=protected-access
-    camera._render_camera.azimuth = params['azimuth']  # pylint: disable=protected-access
-    camera._render_camera.elevation = params['elevation']  # pylint: disable=protected-access
-    camera._render_camera.lookat[:] = [0, 0.535, 1.1]  # pylint: disable=protected-access
-
-    image = camera.render(depth=False, segmentation=False)
-    camera._scene.free()  # pylint: disable=protected-access
-
-    if resize:
-      image = Image.fromarray(image).crop(box=params['crop_box'])
-      image = image.resize([self.image_size, self.image_size],
-                           resample=Image.ANTIALIAS)
-      image = np.asarray(image)
-    return image
+    for m in self.elem_managers.values():
+      m.pre_render()
+    return self.elem_managers['camera'].render(
+      render_size=min(480, int(self.image_size / 64 * 120)),
+      image_size=self.image_size if resize else None,
+    )
 
   def _ik(self, pos):
     out = inverse_kinematics.qpos_from_site_pose(
@@ -199,6 +270,9 @@ class RoboDesk(gym.Env):
         self.physics.step()
       self.physics_copy.data.qpos[:] = self.physics.data.qpos[:]
 
+      for m in self.elem_managers.values():
+        m.step()
+
       if self.reward == 'dense':
         total_reward += self._get_task_reward(self.task, 'dense_reward')
       elif self.reward == 'sparse':
@@ -217,6 +291,7 @@ class RoboDesk(gym.Env):
       done = True
     else:
       done = False
+
     return self._get_obs(), total_reward, done, {'discount': 1.0}
 
   def _get_init_robot_pos(self):
@@ -251,6 +326,10 @@ class RoboDesk(gym.Env):
     self.physics.data.qpos[:self.num_joints] = self._get_init_robot_pos()
     self.physics.data.qvel[:self.num_joints] = np.zeros(9)
 
+    # Reset managers
+    for m in self.elem_managers.values():
+      m.reset()
+
     # Relax object intersections.
     self.physics.forward()
 
@@ -262,6 +341,7 @@ class RoboDesk(gym.Env):
     self.original_pos['flat_block'] = self.physics.named.data.xpos['flat_block']
 
     self.drawer_opened = False
+
     return self._get_obs()
 
   def _did_not_move(self, block_name):
@@ -395,6 +475,22 @@ class RoboDesk(gym.Env):
       threshold = success_criteria[block_name]
       return 1 * (self.physics.named.data.xpos[block_name][2] > threshold)
 
+  def _tv_hue(self, color, reward_type='dense_reward'):
+        tv_manager: TVManager = self.elem_managers['tv']
+        assert tv_manager.tv_enabled, "TV-based reward can only be used when TV is enabled"
+        cidx = {'red': 0, 'green': 1, 'blue': 2}[color]
+
+        self.elem_managers['tv'].ensure_texure_updated()
+        tv_reward = self.elem_managers['tv'].tv_tex[..., cidx].mean() / 255
+        if reward_type == 'success':
+          return tv_reward
+        elif reward_type == 'dense_reward':
+          dist_reward = self._get_dist_reward(
+              self.physics.named.data.xpos[color + '_button'])
+          press_button = (
+              self.physics.named.data.qpos[color + '_light'][0] < -0.00453)
+          return 0.5 * tv_reward + 0.25 * dist_reward + 0.25 * press_button
+
   def _get_task_reward(self, task, reward_type):
     reward = self.reward_functions[task](reward_type)
     reward = max(0, min(1, reward))
@@ -407,3 +503,94 @@ class RoboDesk(gym.Env):
             'end_effector': self.physics.named.data.site_xpos['end_effector'],
             'qpos_objects': self.physics.data.qvel[self.num_joints:].copy(),
             'qvel_objects': self.physics.data.qvel[self.num_joints:].copy()}
+
+
+class RoboDesk(RoboDeskBase):
+  r"""
+  Multi-task manipulation environment.
+
+  Arguments::
+
+    task (str):   Task of the environment, defining the reward function.
+                  Default: "open_slide".
+    reward (str): Type of the reward, also affecting the reward function.
+                  Choices: "dense", "sparse", "success". Default: "dense".
+    action_repeat (int): Default: 1.
+    episode_length (int): Default: 500.
+    image_size (int): Default: 64.
+    distractors (str or set): Subset of ``{'button', 'env_light', 'camera'}``,
+                              specifying which noise distractors are enabled.
+                              String "all" means all of them, and string "none"
+                              means the empty set. Default: "none".
+  """
+
+
+  MODEL_PATH = os.path.join(os.path.dirname(__file__), 'assets/desk.xml')
+  CAMERA_SPEC = CameraSpec()
+  AVAILABLE_DISTRACTORS = {'button', 'env_light', 'camera'}
+
+  def __init__(self, task='open_slide', reward='dense', action_repeat=1,
+               episode_length=500, image_size=64, distractors='none'):
+    if distractors == 'all':
+      distractors = self.AVAILABLE_DISTRACTORS
+    elif distractors == 'none':
+      distractors = set()
+    assert isinstance(distractors, set) and self.AVAILABLE_DISTRACTORS.issuperset(distractors), \
+      ('RoboDesk supports `distractor` argument being "all", "none", or a set '
+       f'containing elements of {self.AVAILABLE_DISTRACTORS}')
+    super().__init__(task, reward, action_repeat, episode_length, image_size,
+                     button_sensor_noise_strength=1 if 'button' in distractors else 0,
+                     env_light_noise_strength=0.7 if 'env_light' in distractors else 0,
+                     headlight_brightness=0.9 if 'env_light' in distractors else 0.4,
+                     camera_noise_strength=1 if 'camera' in distractors else 0)
+
+
+class RoboDeskWithTV(RoboDeskBase):
+  r"""
+  Multi-task manipulation environment with TV. Different from `RoboDesk`, this
+  scene contains a TV in addition to the desk. The TV can sequentially play
+  videos from disk (see ``tv_video_file_pattern`` argument).
+
+  Arguments::
+
+    task (str):   Task of the environment, defining the reward function.
+                  Default: "open_slide".
+    reward (str): Type of the reward, also affecting the reward function.
+                  Choices: "dense", "sparse", "success". Default: "dense".
+    action_repeat (int): Default: 1.
+    episode_length (int): Default: 500.
+    image_size (int): Default: 96 (higher than default RoboDesk due to further camera view).
+    distractors (str or set): Subset of ``{'button', 'env_light', 'camera', 'tv'}``,
+                              specifying which noise distractors are enabled.
+                              String "all" means all of them, and string "none"
+                              means the empty set. Default: "none".
+    tv_video_file_pattern (str): A glob pattern that selects videos to be played
+                                 on a TV in the environment. If `None`, TV will
+                                 not show any video. Default: None.
+  """
+
+  MODEL_PATH = os.path.join(os.path.dirname(__file__), 'assets/desks_with_tv.xml')
+  CAMERA_SPEC = CameraSpec(
+    elevation_offset=13,
+    distance_offset=1.15,
+    lookat_offset=np.array([0.875, 0.4, 0.875]),
+    cropbox_for_render_size_120=np.array([0, 25.892, 120, 120]),
+  )
+  AVAILABLE_DISTRACTORS = {'button', 'env_light', 'camera', 'tv'}
+
+  def __init__(self, task='open_slide', reward='dense', action_repeat=1,
+               episode_length=500, image_size=96, distractors='none',
+               tv_video_file_pattern=None):
+    if distractors == 'all':
+      distractors = self.AVAILABLE_DISTRACTORS
+    elif distractors == 'none':
+      distractors = set()
+    assert isinstance(distractors, set) and self.AVAILABLE_DISTRACTORS.issuperset(distractors), \
+      ('RoboDesk supports `distractor` argument being "all", "none", or a set '
+       f'containing elements of {self.AVAILABLE_DISTRACTORS}')
+    super().__init__(task, reward, action_repeat, episode_length, image_size,
+                     tv_video_file_pattern=tv_video_file_pattern if 'tv' in distractors else None,
+                     button_sensor_noise_strength=1 if 'button' in distractors else 0,
+                     env_light_noise_strength=1 if 'env_light' in distractors else 0,
+                     headlight_brightness=0.9 if 'env_light' in distractors else 0.4,
+                     camera_noise_strength=1 if 'camera' in distractors else 0)

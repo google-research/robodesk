@@ -1,3 +1,3 @@
-from .robodesk import RoboDesk
+from .robodesk import RoboDesk, RoboDeskWithTV
 
-__all__ = ['RoboDesk']
+__all__ = ['RoboDesk', 'RoboDeskWithTV']

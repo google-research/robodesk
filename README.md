@@ -1,14 +1,21 @@
-# RoboDesk
+# RoboDesk with A Diverse Set of Distractors
 
-[![PyPI](https://img.shields.io/pypi/v/robodesk.svg)](https://pypi.python.org/pypi/robodesk/#history)
+A Multi-Task Reinforcement Learning Benchmark with A Diverse Set of Distractors
 
-A Multi-Task Reinforcement Learning Benchmark
+<img src="./animation.gif" width="830" />
 
-![Robodesk Banner](https://i.imgur.com/1qp1SUh.gif)
+This repository contains a version of [RoboDesk](https://github.com/google-research/robodesk) that supports a rich set of challenging distractors, including camera and lighting noises, and even natural video noises. The distractors can be individually switched on or off. When they are all off (default), the environment behaves identically to the original RoboDesk.  Support for these distractors is done by [Tongzhou Wang](https://ssnl.github.io/).
 
-If you find this open source release useful, please reference in your paper:
+If you find this open source release useful, please reference the following entries in your paper:
 
 ```
+@misc{wang2022robodeskdistractor,
+  author = {Tongzhou Wang},
+  title = {RoboDesk with A Diverse Set of Distractors},
+  year = {2022},
+  howpublished = {\url{https://github.com/SsnL/robodesk}},
+}
+
 @misc{kannan2021robodesk,
   author = {Harini Kannan and Danijar Hafner and Chelsea Finn and Dumitru Erhan},
   title = {RoboDesk: A Multi-Task Reinforcement Learning Benchmark},
@@ -23,10 +30,13 @@ If you find this open source release useful, please reference in your paper:
 - **Complexity:** The high-dimensional image inputs contain objects of different shapes and colors, whose initial positions are randomized to avoid naive memorization and require learning algorithms to generalize.
 - **Robustness:** We carefully designed and tested RoboDesk to ensure fast and stable physics simulation. This avoids objects from intersecting, getting stuck, or quickly flying away, a common problem with some existing environments.
 - **Lightweight:** RoboDesk comes as a self-contained Python package with few dependencies. The source code is clean and pragmatic, making it a useful blueprint for creating new MuJoCo environments.
+- **Distractors:** RoboDesk provides an easy-to-use API to turn on various distractors, i.e., environment noises. Available distractors include
+  - Shaky and flickering *environment headlights*;
+  - Shaky *camera movements*;
+  - *TV* playing natural videos, with hue controlled by buttons;
+  - Noisy *button sensor*, affecting the indicator lights on desks and TV hue.
 
 ## Training Agents
-
-Installation: `pip3 install -U robodesk`
 
 The environment follows the [OpenAI Gym][gym] interface:
 
@@ -48,9 +58,7 @@ while not done:
 
 ## Tasks
 
-![Robodesk Tasks](https://i.imgur.com/OwTT2pk.gif)
-
-The behaviors above were learned using the [Dreamer](https://github.com/danijar/dreamer) agent. These policies have been learned from scratch and only from pixels, not proprioceptive states.
+Crucially,  the `tv_green_hue` task gives out reward based on a distractor (TV image green-ness), but its optimal strategy is agnostic of the distractor state (i.e., simply always pushing the button).
 
 | Task | Description |
 | :-------- | :---------- |
@@ -63,14 +71,26 @@ The behaviors above were learned using the [Dreamer](https://github.com/danijar/
 | `flat_block_in_shelf` | Push the green flat block into the shelf, navigating around the other blocks.  |
 | `lift_upright_block` | Grasp the blue upright block and lift it above the table.  |
 | `lift_ball` | Grasp the magenta ball and lift it above the table. |
+| `tv_green_hue` | Push the green button to affect the TV hue to be more green. |
 
 
 ## Environment Details
 
 ### Constructor
 
+Two entry points are available:
++ `robodesk.RoboDesk`: A regular RoboDesk environment with top-down camera view of the desk.
++ `robodesk.RoboDeskWithTV`: A RoboDesk environment with a TV placed in the scene, and a further camera view looking at three desks and the TV. The leftmost desk is where the robot operates.
+
 ```py
+# Regular environment
 robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1, episode_length=500, image_size=64)
+
+# Environment with noisy camera
+robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1, episode_length=500, image_size=64, distractors={'camera'})
+
+# Environment with a TV in scene and all distractors turned on
+robodesk.RoboDeskWithTV(task='open_slide', reward='dense', action_repeat=1, episode_length=500, image_size=64, distractors="all")
 ```
 
 | Parameter | Description |
@@ -80,6 +100,8 @@ robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1, episode_le
 | `action_repeat` | Reduces the control frequency by applying each action multiple times. This is faster than using an environment wrapper because only the needed images are rendered. |
 | `episode_length` | Time limit for the episode, can be `None`. |
 | `image_size` | Size of the image observations in pixels, used for both height and width. |
+| `distractors` | Configures distractors. `"all"` turns on all distractors, `"none"` turns off all of them. <br> Can also be a subset of all available distractors: `{'camera', 'env_light', 'button'}` for `RoboDesk`; and `{'camera', 'env_light', 'button', 'tv}` for `RoboDeskWithTV`. |
+| `tv_video_file_pattern`<br>(Only for `RoboDeskWithTV`) | Glob pattern that specifies the TV video files to use. Requires [`scikit-video`](http://www.scikit-video.org/stable/) to be installed. |
 
 ### Reward
 

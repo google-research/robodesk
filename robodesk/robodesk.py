@@ -13,6 +13,24 @@ import numpy as np
 from PIL import Image
 
 
+class NumPyRNGWrapper(object):
+  def __init__(self):
+    self.seed(None)
+
+  def seed(self, seed=None):
+    # seed: Union[int, np.random.SeedSequence, None]
+    if hasattr(np.random, 'Generator'):
+      self.rng = np.random.Generator(np.random.PCG64(seed))
+    else:
+      self.rng = np.random.RandomState(seed=seed)
+
+  def uniform(self, low=0.0, high=1.0, size=None):
+    return self.rng.uniform(low=low, high=high, size=size)
+
+  def random(self):
+    return self.rng.random()
+
+
 class RoboDesk(gym.Env):
   """Multi-task manipulation environment."""
 
@@ -93,6 +111,10 @@ class RoboDesk(gym.Env):
     self.all_tasks = list(self.reward_functions)
     self.task = task
     # pylint: enable=g-long-lambda
+    self.np_rng = NumPyRNGWrapper()
+
+  def seed(self, seed=None):
+    self.np_rng.seed(seed)
 
   @property
   def action_space(self):
@@ -199,7 +221,7 @@ class RoboDesk(gym.Env):
   def _get_init_robot_pos(self):
     init_joint_pose = np.array(
         [-0.30, -0.4, 0.28, -2.5, 0.13, 1.87, 0.91, 0.01, 0.01])
-    init_joint_pose += 0.15 * np.random.uniform(
+    init_joint_pose += 0.15 * self.np_rng.uniform(
         low=self.physics.model.actuator_ctrlrange[:self.num_joints, 0],
         high=self.physics.model.actuator_ctrlrange[:self.num_joints, 1])
     return init_joint_pose
@@ -212,17 +234,17 @@ class RoboDesk(gym.Env):
     self.physics.reset()
 
     # Randomize object positions.
-    self.physics.named.data.qpos['drawer_joint'] -= 0.10 * np.random.random()
-    self.physics.named.data.qpos['slide_joint'] += 0.20 * np.random.random()
+    self.physics.named.data.qpos['drawer_joint'] -= 0.10 * self.np_rng.random()
+    self.physics.named.data.qpos['slide_joint'] += 0.20 * self.np_rng.random()
 
-    self.physics.named.data.qpos['flat_block'][0] += 0.3 * np.random.random()
-    self.physics.named.data.qpos['flat_block'][1] += 0.07 * np.random.random()
-    self.physics.named.data.qpos['ball'][0] += 0.48 * np.random.random()
-    self.physics.named.data.qpos['ball'][1] += 0.08 * np.random.random()
+    self.physics.named.data.qpos['flat_block'][0] += 0.3 * self.np_rng.random()
+    self.physics.named.data.qpos['flat_block'][1] += 0.07 * self.np_rng.random()
+    self.physics.named.data.qpos['ball'][0] += 0.48 * self.np_rng.random()
+    self.physics.named.data.qpos['ball'][1] += 0.08 * self.np_rng.random()
     self.physics.named.data.qpos['upright_block'][0] += (
-        0.3 * np.random.random() + 0.05)
+        0.3 * self.np_rng.random() + 0.05)
     self.physics.named.data.qpos['upright_block'][1] += (
-        0.05 * np.random.random())
+        0.05 * self.np_rng.random())
 
     # Set robot position.
     self.physics.data.qpos[:self.num_joints] = self._get_init_robot_pos()

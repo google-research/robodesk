@@ -62,6 +62,7 @@ class RoboDesk(gym.Env):
     self.action_repeat = action_repeat
     self.num_steps = 0
     self.episode_length = episode_length
+    assert episode_length % action_repeat == 0, "episode_length must be divisible by action_repeat"
 
     self.original_pos = {}
     self.previous_z_angle = None

@@ -6,6 +6,9 @@ A Multi-Task Reinforcement Learning Benchmark with A Diverse Set of Distractors
 
 This repository contains a version of [RoboDesk](https://github.com/google-research/robodesk) that supports a rich set of challenging distractors, including camera and lighting noises, and even natural video noises. The distractors can be individually switched on or off. When they are all off (default), the environment behaves identically to the original RoboDesk.  Support for these distractors is done by [Tongzhou Wang](https://ssnl.github.io/).
 
+This environment is designed for advancing learning with noisy observations and rewards, a step beyond controlled toy environments and towards more realistic cases. Here is a (likely incompletely) list of projects using this environment:
++ [Denoised MDPs: Learning World Models Better Than The World Itself](https://ssnl.github.io/denoised_mdp). ICML 2022.
+
 If you find this open source release useful, please reference the following entries in your paper:
 
 ```
@@ -60,6 +63,10 @@ while not done:
 
 Crucially,  the `tv_green_hue` task gives out reward based on a distractor (TV image green-ness), but its optimal strategy is agnostic of the distractor state (i.e., simply always pushing the button).
 
+For an environment with **all** distractors and `tv_green_hue`, here is an example of a signal-noise factorization identified by a [Denoised MDP](https://ssnl.github.io/denoised_mdp) model:
+
+https://user-images.githubusercontent.com/5674597/172927710-84c805dd-4326-4064-9079-237c26102812.mp4
+
 | Task | Description |
 | :-------- | :---------- |
 | `open_slide` | Push the sliding door all the way to the right, navigating around the other objects.  |
@@ -84,13 +91,16 @@ Two entry points are available:
 
 ```py
 # Regular environment
-robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1, episode_length=500, image_size=64)
+robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1,
+                  episode_length=500, image_size=64)
 
 # Environment with noisy camera
-robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1, episode_length=500, image_size=64, distractors={'camera'})
+robodesk.RoboDesk(task='open_slide', reward='dense', action_repeat=1,
+                  episode_length=500, image_size=64, distractors={'camera'})
 
 # Environment with a TV in scene and all distractors turned on
-robodesk.RoboDeskWithTV(task='open_slide', reward='dense', action_repeat=1, episode_length=500, image_size=64, distractors="all")
+robodesk.RoboDeskWithTV(task='open_slide', reward='dense', action_repeat=1,
+                        episode_length=500, image_size=64, distractors="all")
 ```
 
 | Parameter | Description |

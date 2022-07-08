@@ -4,9 +4,9 @@ A Multi-Task Reinforcement Learning Benchmark with A Diverse Set of Distractors
 
 <img src="./animation.gif" width="830" />
 
-This repository contains a version of [RoboDesk](https://github.com/google-research/robodesk) that supports a rich set of challenging distractors, including camera and lighting noises, and even natural video noises. The distractors can be individually switched on or off. When they are all off (default), the environment behaves identically to the original RoboDesk.  Support for these distractors is done by [Tongzhou Wang](https://ssnl.github.io/).
+This repository contains a version of [RoboDesk](https://github.com/google-research/robodesk) that supports a rich set of challenging distractors, including camera and lighting noises, and even natural video noises. The distractors can be individually switched on or off. When they are all off (default), the environment behaves identically to the original RoboDesk.  Support for these distractors is added by [Tongzhou Wang](https://ssnl.github.io/).
 
-This environment is designed for advancing learning with noisy observations and rewards, a step beyond controlled toy environments and towards more realistic cases. Here is a (likely incompletely) list of projects using this environment:
+This environment is designed for advancing learning with noisy observations and rewards, a step beyond controlled toy environments and towards more realistic cases. Here is a (likely incomplete) list of projects using this environment:
 + [Denoised MDPs: Learning World Models Better Than The World Itself](https://ssnl.github.io/denoised_mdp). ICML 2022.
 
 If you find this open source release useful, please reference the following entries in your paper:
